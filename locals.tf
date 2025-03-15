@@ -106,7 +106,7 @@ locals {
       ssl_policy                  = lookup(listener, "protocol", null) == "HTTPS" ? lookup(listener, "ssl_policy", "ELBSecurityPolicy-2016-08") : null
       additional_certificate_arns = lookup(listener, "additional_certificate_arns", null)
 
-      actions = {}
+#      actions = {}
 
       default_action = {
         type = listener.default_action.type
@@ -161,7 +161,7 @@ locals {
       }
 
       conditions = listener_rule.conditions
-    } if listener_rule.actions != {}
+    } if listener_rule.default_action != {}
   }
 
   target_groups = length(var.target_groups) == 0 ? {
