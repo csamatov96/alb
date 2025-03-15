@@ -101,6 +101,7 @@ locals {
   custom_listeners = {
     for listener in var.custom_listeners : "${listener.protocol}-${listener.port}" => {
       port                        = lookup(listener, "port", null)
+      priority = lookup(listener_rule, "priority", 1)
       protocol                    = lookup(listener, "protocol", null)
       certificate_arn             = lookup(listener, "certificate_arn", null)
       ssl_policy                  = lookup(listener, "protocol", null) == "HTTPS" ? lookup(listener, "ssl_policy", "ELBSecurityPolicy-2016-08") : null
