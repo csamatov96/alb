@@ -114,12 +114,12 @@ locals {
 
         configuration = {
           target_group = listener.default_action.type == "forward" ? listener.default_action.target_group_key : null
-          status_code  = listener.default_action.type == "redirect" ? listener.default_action.configuration.status_code : null
-          host         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "host", "#{host}") : null
-          path         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "path", "/#{path}") : null
-          port         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "port", "#{port}") : null
-          protocol     = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "protocol", "#{protocol}") : null
-          query        = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "query", "#{query}") : null
+#          status_code  = listener.default_action.type == "redirect" ? listener.default_action.configuration.status_code : null
+#          host         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "host", "#{host}") : null
+#          path         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "path", "/#{path}") : null
+#          port         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "port", "#{port}") : null
+#          protocol     = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "protocol", "#{protocol}") : null
+#          query        = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "query", "#{query}") : null
 
         }
       }
