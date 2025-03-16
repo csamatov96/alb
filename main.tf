@@ -359,6 +359,7 @@ resource "aws_lb_listener" "main" {
   default_action {
     type = each.value.default_action.type
 
+/*
     dynamic "fixed_response" {
       for_each = each.value.default_action.type == "fixed-response" ? { enabled = each.value.default_action.configuration } : {}
 
@@ -381,7 +382,7 @@ resource "aws_lb_listener" "main" {
         query       = redirect.value.query
       }
     }
-
+*/
     dynamic "forward" {
       for_each = each.value.default_action.type == "forward" ? { enabled = each.value.default_action.configuration } : {}
 
