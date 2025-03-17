@@ -102,6 +102,12 @@ variable "ca_certificates_bundle_s3_bucket" {
   type        = string
 }
 
+variable "mode" {
+  description = "The mode of mutual authentication."
+  type        = string
+  default     = "DISABLED"    
+}
+
 resource "aws_lb_trust_store" "this" {
   count = var.create ? 1 : 0
 
