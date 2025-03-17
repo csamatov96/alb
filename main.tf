@@ -85,6 +85,33 @@ resource "aws_lb_target_group_attachment" "main" {
   port             = lookup(each.value, "port", aws_lb_target_group.main[each.value.target_group_key].port)
 }
 
+
+variable "create" {
+  description = "Controls if resources should be created."
+  type        = bool
+  default     = false
+}
+
+variable "ca_certificates_bundle_s3_key" {
+  description = "The S3 key where the CA certificates bundle is stored."
+  type        = string
+}
+
+variable "ca_certificates_bundle_s3_bucket" {
+  description = "The S3 bucket where the CA certificates bundle is stored."
+  type        = string
+}
+
+resource "aws_lb_trust_store" "this" {
+  count = var.create ? 1 : 0
+
+  ca_certificates_bundle_s3_bucket = var.ca_certificates_bundle_s3_bucket
+  ca_certificates_bundle_s3_key    = var.ca_certificates_bundle_s3_key
+}
+
+
+
+
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener
 resource "aws_lb_listener" "standard_listeners" {
   for_each = local.standard_listeners
@@ -125,6 +152,13 @@ resource "aws_lb_listener" "standard_listeners" {
 
     }
   }
+
+  mutual_authentication {
+    mode = var.mode
+    #    trust_store_arn = aws_lb_trust_store.this[0].arn
+  }
+
+  
 }
 
 
