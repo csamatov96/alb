@@ -86,6 +86,7 @@ resource "aws_lb_target_group_attachment" "main" {
 }
 
 
+
 variable "create" {
   description = "Controls if resources should be created."
   type        = bool
@@ -158,12 +159,6 @@ resource "aws_lb_listener" "standard_listeners" {
 
     }
   }
-
-  mutual_authentication {
-    mode = var.mode
-    #    trust_store_arn = aws_lb_trust_store.this[0].arn
-  }
-
   
 }
 
@@ -216,171 +211,5 @@ resource "aws_wafv2_web_acl_association" "main" {
   resource_arn = aws_lb.main.arn
   web_acl_arn  = var.web_acl_id
 }
-
-
-
-
-#############################################################################################
-locals {
-  custom_listeners = {
-    for listener in var.custom_listeners : "${listener.protocol}-${listener.port}" => {
-      port                        = lookup(listener, "port", null)
-      protocol                    = lookup(listener, "protocol", null)
-      certificate_arn             = lookup(listener, "certificate_arn", null)
-      ssl_policy                  = lookup(listener, "protocol", null) == "HTTPS" ? lookup(listener, "ssl_policy", "ELBSecurityPolicy-2016-08") : null
-      additional_certificate_arns = lookup(listener, "additional_certificate_arns", null)
-
-      actions = {}
-
-      default_action = {
-        type = listener.default_action.type
-
-        configuration = {
-          target_group = listener.default_action.type == "forward" ? listener.default_action.target_group_key : null
-          status_code  = listener.default_action.type == "redirect" ? listener.default_action.configuration.status_code : null
-          host         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "host", "#{host}") : null
-          path         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "path", "/#{path}") : null
-          port         = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "port", "#{port}") : null
-          protocol     = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "protocol", "#{protocol}") : null
-          query        = listener.default_action.type == "redirect" ? lookup(listener.default_action.configuration, "query", "#{query}") : null
-
-        }
-      }
-
-      conditions = listener.conditions
-    }
-  }
-
-  # Get all of the additional certificates defined within the listeners and
-  # create a list with the information needed for the certificate resource.
-  additional_certificates = flatten([
-    for listener_name, listener_rule in local.custom_listeners : [
-      for cert_name, cert_arn in listener_rule.additional_certificate_arns : {
-        listener_name = listener_name
-        cert_name     = cert_name
-        cert_arn      = cert_arn
-      }
-    ] if contains(keys(listener_rule), "additional_certificate_arns") && listener_rule.additional_certificate_arns != null
-  ])
-
-  # Convert the list of additional certificates into a named map for the
-  # for_each statement to work with named instances.
-  additional_certificates_map = {
-    for values in local.additional_certificates : "${values.listener_name}_${values.cert_name}" => {
-      certificate_arn = values.cert_arn
-      listener_name   = values.listener_name
-    }
-  }
-
-  custom_listener_rules = {
-    for listener_name, listener_rule in local.custom_listeners : listener_name => {
-      priority = lookup(listener_rule, "priority", 1)
-
-      action = {
-        type = listener_rule.default_action.type
-
-        configuration = {
-          target_group = listener_rule.default_action.type == "forward" ? listener_rule.default_action.configuration.target_group : null
-        }
-      }
-
-      conditions = listener_rule.conditions
-    } if listener_rule.actions != {}
-  }
-
-}
-
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener
-resource "aws_lb_listener" "main" {
-  for_each = local.custom_listeners
-
-  load_balancer_arn = aws_lb.main.arn
-  port              = each.value.port
-  protocol          = each.value.protocol
-  certificate_arn   = each.value.certificate_arn
-  ssl_policy        = each.value.ssl_policy
-  tags              = merge(local.tags, { Name = "${local.name_base}-${each.key}-lsr" })
-
-  default_action {
-    type = each.value.default_action.type
-
-    dynamic "fixed_response" {
-      for_each = each.value.default_action.type == "fixed-response" ? { enabled = each.value.default_action.configuration } : {}
-
-      content {
-        content_type = fixed_response.value.content_type
-        status_code  = fixed_response.value.status_code
-        message_body = fixed_response.value.message_body
-      }
-    }
-
-    dynamic "redirect" {
-      for_each = each.value.default_action.type == "redirect" ? { enabled = each.value.default_action.configuration } : {}
-
-      content {
-        host        = redirect.value.host
-        path        = redirect.value.path
-        port        = redirect.value.port
-        protocol    = redirect.value.protocol
-        status_code = redirect.value.status_code
-        query       = redirect.value.query
-      }
-    }
-
-    dynamic "forward" {
-      for_each = each.value.default_action.type == "forward" ? { enabled = each.value.default_action.configuration } : {}
-
-      content {
-        target_group {
-          arn = aws_lb_target_group.main[forward.value.target_group].arn
-        }
-      }
-    }
-  }
-}
-
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener_certificate
-resource "aws_lb_listener_certificate" "main" {
-  for_each = local.additional_certificates_map
-
-  listener_arn    = aws_lb_listener.main[each.value.listener_name].arn
-  certificate_arn = each.value.certificate_arn
-
-  # Explicitely define the dependency to make sure all listeners are created
-  # before attempting to attach more certificates.
-  depends_on = [
-    aws_lb_listener.main
-  ]
-}
-
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener_rule
-resource "aws_lb_listener_rule" "main" {
-  for_each = local.custom_listener_rules
-
-  listener_arn = aws_lb_listener.main[each.key].arn
-  priority     = each.value.priority
-  tags         = merge(local.tags, { Name = "${local.name_base}-${each.key}-lsr-rule" })
-
-  action {
-    type             = each.value.action.type
-    target_group_arn = each.value.action.type == "forward" ? aws_lb_target_group.main[each.value.action.configuration.target_group].arn : null
-  }
-
-  dynamic "condition" {
-    for_each = each.value.conditions
-
-    content {
-      dynamic "http_header" {
-        for_each = condition.key == "http_header" ? { enabled = condition.value } : {}
-
-        content {
-          http_header_name = http_header.value.http_header_name
-          values           = http_header.value.values
-        }
-      }
-    }
-  }
-}
-
 
 
